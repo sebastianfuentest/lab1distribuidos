@@ -26,8 +26,8 @@ func main() {
 	c := chat.NewChatServiceClient(conn)
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Ingrese una opción \n1. Subir archivo pymes.csv\n2.Subir archivo retail.csv")
-	fmt.Println("---------------------")
+	log.Printf("Ingrese una opción \n1. Subir archivo pymes.csv\n2.Subir archivo retail.csv")
+	log.Printf("---------------------")
 
 	for {
 		fmt.Print("-> ")

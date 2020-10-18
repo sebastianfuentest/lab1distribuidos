@@ -30,6 +30,11 @@ var retail []Paquete
 var prioritario []Paquete
 var noprioritario []Paquete
 
+//remove is
+func remove(slice []Paquete, p int) []Paquete {
+	return append(slice[:p], slice[p+1:]...)
+}
+
 //OrdenarPyme is
 func (s *Server) OrdenarPyme(ctx context.Context, message *Orden) (*Message, error) {
 	code := " "
@@ -85,7 +90,7 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 		retail = append(retail, appPaquete)
 	}
 
-	fmt.Println(prioritario)
+	//fmt.Println(prioritario)
 
 	//Agrego al csv
 	csvwriter.Write(registro)
@@ -109,6 +114,7 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
+			prioritario = remove(prioritario, 1)
 
 		} else if len(noprioritario) > 0 {
 			pac = MPaquete{
@@ -119,6 +125,7 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
+			noprioritario = remove(noprioritario, 1)
 		} else {
 			pac = MPaquete{
 				Id:          "NOHAY",
@@ -133,13 +140,40 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 		return &pac, nil
 
 	}
+	if message.GetBody() == "retail" {
+		if len(retail) > 0 {
+			pac = MPaquete{
+				Id:          retail[1].id,
+				Seguimiento: retail[1].seguimiento,
+				Tipo:        retail[1].tipo,
+				Valor:       retail[1].valor,
+				Intentos:    0,
+				Estado:      "En Camino",
+			}
+			retail = remove(retail, 1)
+		} else {
+			pac = MPaquete{
+				Id:          "NOHAY",
+				Seguimiento: "NOHAY",
+				Tipo:        "NOHAY",
+				Valor:       "177013",
+				Intentos:    0,
+				Estado:      "NOHAY",
+			}
+		}
+
+		s.mute.Unlock()
+		return &pac, nil
+	}
 	pac = MPaquete{
-		Id:          "NOHAY",
+		Id:          "NOHAYNADADENADA",
 		Seguimiento: "NOHAY",
 		Tipo:        "NOHAY",
-		Valor:       "177013 pero no entro a la otra wea si",
+		Valor:       "177013",
 		Intentos:    0,
 		Estado:      "NOHAY",
 	}
+
+	s.mute.Unlock()
 	return &pac, nil
 }
