@@ -1,0 +1,31 @@
+syntax= "proto3";
+package chat;
+
+message Message{
+    string body=1;
+}
+message Orden{
+    string id=1;
+    string producto = 2;
+    string valor = 3;
+    string tienda = 4;
+    string destino = 5;
+    string prioritario = 6;
+}
+message MPaquete{
+    string id=1;
+    string seguimiento = 2;
+    string tipo = 3;
+    string valor = 4;
+    int32 intentos=5;
+    string estado = 6; 
+}
+
+
+
+service ChatService{
+    rpc OrdenarPyme(Orden) returns (Message) {}
+    rpc OrdenarRetail(Orden) returns (Message) {}
+    rpc RecibirPaquete(Message)returns(MPaquete){}
+   // rpc Estado(Message) returns (Message){}
+}
