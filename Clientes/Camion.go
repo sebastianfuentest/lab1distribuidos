@@ -77,7 +77,7 @@ func Mandar(camion Camion) (ret int) {
 	}
 
 	//Registro en Memoria
-	csvfile, err := os.OpenFile(camion.nombre+"csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	csvfile, err := os.OpenFile(camion.nombre+".csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		log.Fatal(err)
 	}
