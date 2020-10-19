@@ -29,8 +29,9 @@ type Paquete struct {
 var retail []Paquete
 var prioritario []Paquete
 var noprioritario []Paquete
+var listapaquetes []Paquete
 
-//OrdenarPyme is
+//OrdenarPyme is para recibir las ordenes de las pymes y llamar la funcion que las guarda
 func (s *Server) OrdenarPyme(ctx context.Context, message *Orden) (*Message, error) {
 	code := " "
 	if strings.Compare(message.Prioritario, "0") == 0 {
@@ -41,16 +42,16 @@ func (s *Server) OrdenarPyme(ctx context.Context, message *Orden) (*Message, err
 	return &Message{Body: code}, nil
 }
 
-//OrdenarRetail is
+//OrdenarRetail is para recibir las ordenes de retail y llamar la funcion que las guarda
 func (s *Server) OrdenarRetail(ctx context.Context, message *Orden) (*Message, error) {
 	code := GuardarOrden(message.Id, message.Producto, message.Valor, message.Tienda, message.Destino, "Retail")
 	return &Message{Body: code}, nil
 }
 
-//GuardarOrden is
+//GuardarOrden is para guardar las ordenes en un array y en memoria
 func GuardarOrden(id string, producto string, valor string, tienda string, destino string, tipo string) string {
-	//Registro en Memoria
-	csvfile, err := os.OpenFile("dblogistica.csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	//Registro en memoria
+	csvfile, err := os.OpenFile("logistica.csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,7 +68,6 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 	registro := []string{timestamp, id, tipo, producto, valor, tienda, destino, code}
 
 	//Agregar Paquete a la cola
-
 	appPaquete := Paquete{
 		id:          id,
 		seguimiento: code,
@@ -85,7 +85,7 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 		retail = append(retail, appPaquete)
 	}
 
-	fmt.Println(prioritario)
+	listapaquetes = append(listapaquetes, appPaquete)
 
 	//Agrego al csv
 	csvwriter.Write(registro)
@@ -142,4 +142,34 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 		Estado:      "NOHAY",
 	}
 	return &pac, nil
+}
+
+//SeguimientoPaquete is para recibir el estado actual del paquete
+func (s *Server) SeguimientoPaquete(ctx context.Context, message *Message) (*Message, error) {
+
+	//Recorro la lista de paquetes
+	for i := len(listapaquetes) - 1; i >= 0; i-- {
+		//Obtengo el paquete en la posicion i y comparo su codigo de seguimiento con el mensaje
+		log.Print(message.Body)
+		if strings.Compare(message.Body, listapaquetes[i].seguimiento) == 0 {
+			return &Message{Body: listapaquetes[i].estado}, nil
+		}
+	}
+	return &Message{Body: "No se ha encontrado el paquete"}, nil
+}
+
+//CambiarEstado is Para actualizar el estado de los paquetes en la ListaPaquetes y en el csv
+func (s *Server) CambiarEstado(ctx context.Context, message *NuevoEstado) (*Message, error) {
+
+	//Recorro la lista de paquetes
+	for i := len(listapaquetes) - 1; i >= 0; i-- {
+		//Obtengo el paquete en la posicion i y comparo su codigo de seguimiento con el mensaje
+		if strings.Compare(message.Seguimiento, listapaquetes[i].seguimiento) == 0 {
+			listapaquetes[i].estado = message.Nuevoestado
+			return &Message{Body: "Cambio realizado con exito"}, nil
+		}
+	}
+
+	return &Message{Body: "No se ha encontrado el paquete"}, nil
+
 }
