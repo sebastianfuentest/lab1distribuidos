@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +31,6 @@ var retail []Paquete
 var prioritario []Paquete
 var noprioritario []Paquete
 var listapaquetes []Paquete
-var hicelacosa int = 1
 
 //remove is
 func remove(slice []Paquete, p int) []Paquete {
@@ -68,7 +68,11 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 	timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
 
 	//Codigo Seguimiento
-	code := id + "177013"
+	var banana int
+	banana = len(listapaquetes)
+	var strbanana string
+	strbanana = strconv.Itoa(banana)
+	code := id + strbanana //+"177013"
 
 	//Registro en struct
 	registro := []string{timestamp, id, tipo, producto, valor, tienda, destino, code}
@@ -107,10 +111,6 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquete, error) {
 	var pac MPaquete
 	s.mute.Lock()
-	if hicelacosa == 1 {
-		prioritario = remove(prioritario, 0)
-		hicelacosa = 0
-	}
 	if message.GetBody() == "normal" {
 		if len(prioritario) > 0 {
 			pac = MPaquete{
@@ -123,16 +123,16 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 			}
 			prioritario = remove(prioritario, 0)
 
-		} else if len(noprioritario) > 1 {
+		} else if len(noprioritario) > 0 {
 			pac = MPaquete{
-				Id:          noprioritario[1].id,
-				Seguimiento: noprioritario[1].seguimiento,
-				Tipo:        noprioritario[1].tipo,
-				Valor:       noprioritario[1].valor,
+				Id:          noprioritario[0].id,
+				Seguimiento: noprioritario[0].seguimiento,
+				Tipo:        noprioritario[0].tipo,
+				Valor:       noprioritario[0].valor,
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
-			noprioritario = remove(noprioritario, 1)
+			noprioritario = remove(noprioritario, 0)
 		} else {
 			pac = MPaquete{
 				Id:          "NOHAY",
@@ -150,14 +150,14 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 	if message.GetBody() == "retail" {
 		if len(retail) > 0 {
 			pac = MPaquete{
-				Id:          retail[1].id,
-				Seguimiento: retail[1].seguimiento,
-				Tipo:        retail[1].tipo,
-				Valor:       retail[1].valor,
+				Id:          retail[0].id,
+				Seguimiento: retail[0].seguimiento,
+				Tipo:        retail[0].tipo,
+				Valor:       retail[0].valor,
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
-			retail = remove(retail, 1)
+			retail = remove(retail, 0)
 		} else {
 			pac = MPaquete{
 				Id:          "NOHAY",

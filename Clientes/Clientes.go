@@ -47,22 +47,25 @@ func main() {
 				fmt.Println(err)
 			}
 			for _, line := range csvLines {
-				message := chat.Orden{
-					Id:          line[0],
-					Producto:    line[1],
-					Valor:       line[2],
-					Tienda:      line[3],
-					Destino:     line[4],
-					Prioritario: line[5],
-				}
-				response, err := c.OrdenarPyme(context.Background(), &message)
-				if err != nil {
-					log.Fatalf("We couldn't say hello: %s", err)
-				}
+				if strings.Compare(line[0], "id") != 0 {
+					message := chat.Orden{
+						Id:          line[0],
+						Producto:    line[1],
+						Valor:       line[2],
+						Tienda:      line[3],
+						Destino:     line[4],
+						Prioritario: line[5],
+					}
+					response, err := c.OrdenarPyme(context.Background(), &message)
+					if err != nil {
+						log.Fatalf("We couldn't say hello: %s", err)
+					}
 
-				log.Printf("Su codigo de seguimiento es: %s", response.Body)
+					log.Printf("Su codigo de seguimiento es: %s", response.Body)
+				}
+				//Termina de leerlo
 			}
-			//Termina de leerlo
+
 		}
 		if strings.Compare(text, "2") == 0 {
 			//Toda esta parte es para leer los archivos retail.csv
@@ -77,20 +80,24 @@ func main() {
 				fmt.Println(err)
 			}
 			for _, line := range RetailLines {
-				messageRetail := chat.Orden{
-					Id:          line[0],
-					Producto:    line[1],
-					Valor:       line[2],
-					Tienda:      line[3],
-					Destino:     line[4],
-					Prioritario: "0",
-				}
-				response, err := c.OrdenarRetail(context.Background(), &messageRetail)
-				if err != nil {
-					log.Fatalf("We couldn't say hello: %s", err)
+				if strings.Compare(line[0], "id") != 0 {
+					messageRetail := chat.Orden{
+						Id:          line[0],
+						Producto:    line[1],
+						Valor:       line[2],
+						Tienda:      line[3],
+						Destino:     line[4],
+						Prioritario: "0",
+					}
+					response, err := c.OrdenarRetail(context.Background(), &messageRetail)
+					if err != nil {
+						log.Fatalf("We couldn't say hello: %s", err)
+					}
+
+					log.Printf("Su codigo de seguimiento es: %s", response.Body)
+
 				}
 
-				log.Printf("Su codigo de seguimiento es: %s", response.Body)
 			}
 			//Termina de leerlo
 		}
@@ -109,7 +116,7 @@ func main() {
 				log.Fatalf("We couldn't say hello: %s", err)
 			}
 
-			log.Printf("Su codigo de seguimiento es: %s", response.Body)
+			log.Printf("el estado de su paquete es: %s", response.Body)
 
 		}
 

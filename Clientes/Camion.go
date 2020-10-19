@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,7 +16,7 @@ import (
 	"papa.com/Clientes/chat"
 )
 
-//Camion is
+//Camion is la estructura de los camiones
 type Camion struct {
 	nombre     string
 	conpaquete int
@@ -25,7 +27,7 @@ type Camion struct {
 	cargo2     Paquete
 }
 
-//Paquete is
+//Paquete is la estructura de los paquetes
 type Paquete struct {
 	id          string
 	seguimiento string
@@ -37,21 +39,19 @@ type Paquete struct {
 
 //EnRuta funcion auxiliar para que los camiones busquen paquetes en un loop
 func EnRuta(camion Camion) {
-	log.Printf("entro a la")
+
 	for {
 		if camion.conpaquete == 0 {
 			camion.conpaquete = 1
 			log.Printf("Mandando camion %s \n", camion.nombre)
 			camion.conpaquete = Mandar(camion)
-			time.Sleep(time.Duration(5) * time.Second)
-			log.Printf("conpaquete igual a %b ", camion.conpaquete)
 
 		}
 
 	}
 }
 
-//Mandar is
+//Mandar is la funcion encargada de enviar los paquetes
 func Mandar(camion Camion) (ret int) {
 	var i int
 	camion.cargo1.id = "nada"
@@ -66,16 +66,23 @@ func Mandar(camion Camion) (ret int) {
 		log.Fatalf("Could not connect: %s", err)
 	}
 	c := chat.NewChatServiceClient(conn)
-	//pido 2 paquetese altiro
 	response, err := c.RecibirPaquete(context.Background(), &mensaje)
 	if err != nil {
 		log.Fatalf("We couldn't say hello: %s", err)
-	}
+	} //espero el tiempo antes de pedir el segundo pedido
 	time.Sleep(time.Duration(camion.tEspera) * time.Second)
 	response2, err := c.RecibirPaquete(context.Background(), &mensaje)
 	if err != nil {
 		log.Fatalf("We couldn't say hello: %s", err)
 	}
+
+	//Registro en Memoria
+	csvfile, err := os.OpenFile(camion.nombre+"csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		log.Fatal(err)
+	}
+	csvwriter := csv.NewWriter(csvfile)
+	//
 
 	appPaquete := Paquete{
 		id:          response.Id,
@@ -115,10 +122,37 @@ func Mandar(camion Camion) (ret int) {
 					fmt.Println("el camion ", camion.nombre, " lleva ", camion.cargo2.intentos, " intentos fallidos en la entrega de seguimiento: ", camion.cargo1.seguimiento, " \n")
 
 				} else {
-					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo1.seguimiento, " \n")
+					fmt.Println("el camion ", camion.nombre, "entrego con exito luego de ", camion.cargo1.intentos, " intentos el paquete con seguimiento: ", camion.cargo1.seguimiento, " \n")
+					message := chat.NuevoEstado{
+						Seguimiento: camion.cargo1.seguimiento,
+						Nuevoestado: "Entrega Exitosa",
+					}
+					c.CambiarEstado(context.Background(), &message)
+
+					//Escribir en el registro
+					t := time.Now()
+					timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
+					intenstring := strconv.Itoa(int(camion.cargo1.intentos) + 1)
+					registro := []string{camion.cargo1.id, camion.cargo1.tipo, camion.cargo1.valor, intenstring, timestamp}
+					csvwriter.Write(registro)
 					break
 				}
 				time.Sleep(time.Duration(camion.tEntre) * time.Second)
+			}
+			if camion.cargo1.intentos == 3 {
+				//fallo entrega cargo1
+				message := chat.NuevoEstado{
+					Seguimiento: camion.cargo1.seguimiento,
+					Nuevoestado: "Entrega Fallida",
+				}
+				c.CambiarEstado(context.Background(), &message)
+
+				//Escribir en el registro
+				intenstring := strconv.Itoa(int(camion.cargo1.intentos))
+				registro := []string{camion.cargo1.id, camion.cargo1.tipo, camion.cargo1.valor, intenstring, "0"}
+				csvwriter.Write(registro)
+				//---------------------------------------------------
+
 			}
 			for camion.cargo2.intentos < 3 {
 				i = rand.Intn(100)
@@ -127,10 +161,34 @@ func Mandar(camion Camion) (ret int) {
 					fmt.Println("el camion ", camion.nombre, " lleva ", camion.cargo2.intentos, " intentos fallidos en la entrega de seguimiento: ", camion.cargo2.seguimiento, " \n")
 
 				} else {
-					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo2.seguimiento, " \n")
+					fmt.Println("el camion ", camion.nombre, "entrego con exito luego de ", camion.cargo2.intentos, " intentos el paquete con seguimiento: ", camion.cargo2.seguimiento, " \n")
+					message2 := chat.NuevoEstado{
+						Seguimiento: camion.cargo2.seguimiento,
+						Nuevoestado: "Entrega Exitosa",
+					}
+					c.CambiarEstado(context.Background(), &message2)
+					//Escribir en el registro
+					t := time.Now()
+					timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
+					intenstring := strconv.Itoa(int(camion.cargo2.intentos) + 1)
+					registro := []string{camion.cargo2.id, camion.cargo2.tipo, camion.cargo2.valor, intenstring, timestamp}
+					csvwriter.Write(registro)
 					break
+
 				}
 				time.Sleep(time.Duration(camion.tEntre) * time.Second)
+			}
+			if camion.cargo2.intentos == 3 {
+				//fallo entrega cargo 2
+				message2 := chat.NuevoEstado{
+					Seguimiento: camion.cargo2.seguimiento,
+					Nuevoestado: "Entrega Fallida",
+				}
+				c.CambiarEstado(context.Background(), &message2)
+				//Escribir en el registro
+				intenstring := strconv.Itoa(int(camion.cargo2.intentos))
+				registro := []string{camion.cargo2.id, camion.cargo2.tipo, camion.cargo2.valor, intenstring, "0"}
+				csvwriter.Write(registro)
 			}
 		} else {
 			for camion.cargo2.intentos < 3 {
@@ -141,23 +199,71 @@ func Mandar(camion Camion) (ret int) {
 					fmt.Println("el camion ", camion.nombre, " lleva ", camion.cargo2.intentos, " intentos fallidos en la entrega de seguimiento: ", camion.cargo2.seguimiento, " \n")
 
 				} else {
-					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo2.seguimiento, " \n")
+					fmt.Println("el camion ", camion.nombre, "entrego con exito luego de ", camion.cargo2.intentos, " intentos el paquete con seguimiento: ", camion.cargo2.seguimiento, " \n")
+					message2 := chat.NuevoEstado{
+						Seguimiento: camion.cargo2.seguimiento,
+						Nuevoestado: "Entrega Exitosa",
+					}
+					c.CambiarEstado(context.Background(), &message2)
+					//Escribir en el registro
+					t := time.Now()
+					timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
+					intenstring := strconv.Itoa(int(camion.cargo2.intentos) + 1)
+					registro := []string{camion.cargo2.id, camion.cargo2.tipo, camion.cargo2.valor, intenstring, timestamp}
+					csvwriter.Write(registro)
 					break
 				}
 				time.Sleep(time.Duration(camion.tEntre) * time.Second)
+			}
+			if camion.cargo2.intentos == 3 {
+				//fallo entrega cargo 2
+				message2 := chat.NuevoEstado{
+					Seguimiento: camion.cargo2.seguimiento,
+					Nuevoestado: "Entrega Fallida",
+				}
+				c.CambiarEstado(context.Background(), &message2)
+				//Escribir en el registro
+				intenstring := strconv.Itoa(int(camion.cargo2.intentos))
+				registro := []string{camion.cargo2.id, camion.cargo2.tipo, camion.cargo2.valor, intenstring, "0"}
+				csvwriter.Write(registro)
+				//---------------
 			}
 			for camion.cargo1.intentos < 3 {
 				i = rand.Intn(100)
 				if i >= 80 {
 					camion.cargo2.intentos = camion.cargo2.intentos + 1
-					fmt.Println("el camion ", camion.nombre, " lleva ", camion.cargo2.intentos, " intentos fallidos en la entrega de seguimiento: ", camion.cargo1.seguimiento, " \n")
+					fmt.Println("el camion ", camion.nombre, " lleva ", camion.cargo1.intentos, " intentos fallidos en la entrega de seguimiento: ", camion.cargo1.seguimiento, " \n")
 
 				} else {
-					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo1.seguimiento, " \n")
+					fmt.Println("el camion ", camion.nombre, "entrego con exito luego de ", camion.cargo1.intentos, " intentos el paquete con seguimiento: ", camion.cargo1.seguimiento, " \n")
+					message := chat.NuevoEstado{
+						Seguimiento: camion.cargo1.seguimiento,
+						Nuevoestado: "Entrega Exitosa",
+					}
+					c.CambiarEstado(context.Background(), &message)
+					//Escribir en el registro
+					t := time.Now()
+					timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
+					intenstring := strconv.Itoa(int(camion.cargo1.intentos) + 1)
+					registro := []string{camion.cargo1.id, camion.cargo1.tipo, camion.cargo1.valor, intenstring, timestamp}
+					csvwriter.Write(registro)
 					break
 				}
 			}
-			time.Sleep(time.Duration(camion.tEntre) * time.Second)
+			if camion.cargo1.intentos == 3 {
+				//fallo entrega cargo1
+				message := chat.NuevoEstado{
+					Seguimiento: camion.cargo1.seguimiento,
+					Nuevoestado: "Entrega Fallida",
+				}
+				c.CambiarEstado(context.Background(), &message)
+				//Escribir en el registro
+				intenstring := strconv.Itoa(int(camion.cargo1.intentos))
+				registro := []string{camion.cargo1.id, camion.cargo1.tipo, camion.cargo1.valor, intenstring, "0"}
+				csvwriter.Write(registro)
+				//------------------
+				time.Sleep(time.Duration(camion.tEntre) * time.Second)
+			}
 
 		}
 
@@ -169,12 +275,39 @@ func Mandar(camion Camion) (ret int) {
 				log.Println("el camion %s lleva %b intentos fallidos en la entrega de seguimiento: %s \n", camion.nombre, camion.cargo1.intentos, camion.cargo1.seguimiento)
 
 			} else {
-				log.Println("el camion %s entrego con exito el paquete con seguimiento: %s \n", camion.nombre, camion.cargo1.seguimiento)
+				log.Println("el camion %s entrego con exito luego de %b intentos el paquete con seguimiento: %s \n", camion.nombre, camion.cargo1.valor, camion.cargo1.seguimiento)
+				message := chat.NuevoEstado{
+					Seguimiento: camion.cargo1.seguimiento,
+					Nuevoestado: "Entrega Exitosa",
+				}
+				c.CambiarEstado(context.Background(), &message)
+				//Escribir en el registro
+				t := time.Now()
+				timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
+				intenstring := strconv.Itoa(int(camion.cargo1.intentos) + 1)
+				registro := []string{camion.cargo1.id, camion.cargo1.tipo, camion.cargo1.valor, intenstring, timestamp}
+				csvwriter.Write(registro)
 				break
 			}
 			time.Sleep(time.Duration(camion.tEntre) * time.Second)
 		}
+		if camion.cargo1.intentos == 3 {
+			message := chat.NuevoEstado{
+				Seguimiento: camion.cargo1.seguimiento,
+				Nuevoestado: "Entrega Fallida",
+			}
+			c.CambiarEstado(context.Background(), &message)
+			//Escribir en el registro
+			intenstring := strconv.Itoa(int(camion.cargo1.intentos))
+			registro := []string{camion.cargo1.id, camion.cargo1.tipo, camion.cargo1.valor, intenstring, "0"}
+			csvwriter.Write(registro)
+		}
 	}
+
+	//Cerrar los archivos
+	csvwriter.Flush()
+	csvfile.Close()
+	//-------
 
 	return 0
 }
@@ -185,14 +318,14 @@ func main() {
 		nombre: "normal",
 		Tipo:   "normal",
 	}
-	/*CRetail1 := Camion{
+	CRetail1 := Camion{
 		nombre: "retail1",
 		Tipo:   "retail",
 	}
 	CRetail2 := Camion{
 		nombre: "retail2",
 		Tipo:   "retail",
-	}*/
+	}
 	var espera int
 	var esperaEntrega int
 	fmt.Println("Ingrese Tiempo que esperaran los camiones para recibir un segundo paquete")
@@ -201,11 +334,8 @@ func main() {
 		fmt.Println(err2)
 	}
 	CNormal.tEspera = espera
-	//CRetail1.tEspera = espera
-	//CRetail2.tEspera = espera
-	/*
-		fmt.Println("Tiempo de envio Paquete")
-		tenvio, _ := reader.ReadString('\n')*/
+	CRetail1.tEspera = espera
+	CRetail2.tEspera = espera
 
 	fmt.Println("Ingrese Tiempo de demora para la entrega de los camiones ")
 	_, err1 := fmt.Scanf("%d\n", &esperaEntrega)
@@ -214,8 +344,8 @@ func main() {
 	}
 	CNormal.tEntre = esperaEntrega
 	go EnRuta(CNormal)
-	//go Mandar(CRetail1)
-	//go Mandar(CRetail2)
+	go EnRuta(CRetail1)
+	go EnRuta(CRetail2)
 	reader := bufio.NewReader(os.Stdin)
 	log.Printf("ingrese 1 para terminar el programa")
 	for {
