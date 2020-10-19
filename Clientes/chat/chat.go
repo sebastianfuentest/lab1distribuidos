@@ -29,6 +29,7 @@ type Paquete struct {
 var retail []Paquete
 var prioritario []Paquete
 var noprioritario []Paquete
+var hicelacosa int = 1
 
 //remove is
 func remove(slice []Paquete, p int) []Paquete {
@@ -104,19 +105,23 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquete, error) {
 	var pac MPaquete
 	s.mute.Lock()
+	if hicelacosa == 1 {
+		prioritario = remove(prioritario, 0)
+		hicelacosa = 0
+	}
 	if message.GetBody() == "normal" {
 		if len(prioritario) > 0 {
 			pac = MPaquete{
-				Id:          prioritario[1].id,
-				Seguimiento: prioritario[1].seguimiento,
-				Tipo:        prioritario[1].tipo,
-				Valor:       prioritario[1].valor,
+				Id:          prioritario[0].id,
+				Seguimiento: prioritario[0].seguimiento,
+				Tipo:        prioritario[0].tipo,
+				Valor:       prioritario[0].valor,
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
-			prioritario = remove(prioritario, 1)
+			prioritario = remove(prioritario, 0)
 
-		} else if len(noprioritario) > 0 {
+		} else if len(noprioritario) > 1 {
 			pac = MPaquete{
 				Id:          noprioritario[1].id,
 				Seguimiento: noprioritario[1].seguimiento,

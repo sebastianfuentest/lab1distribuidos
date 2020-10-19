@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -15,18 +14,15 @@ import (
 	"papa.com/Clientes/chat"
 )
 
-var wgNormal sync.WaitGroup
-var wgRetail1 sync.WaitGroup
-var wgRetail2 sync.WaitGroup
-
 //Camion is
 type Camion struct {
-	nombre  string
-	Tipo    string
-	tEspera int
-	tEntre  int
-	cargo1  Paquete
-	cargo2  Paquete
+	nombre     string
+	conpaquete int
+	Tipo       string
+	tEspera    int
+	tEntre     int
+	cargo1     Paquete
+	cargo2     Paquete
 }
 
 //Paquete is
@@ -41,23 +37,22 @@ type Paquete struct {
 
 //EnRuta funcion auxiliar para que los camiones busquen paquetes en un loop
 func EnRuta(camion Camion) {
+	log.Printf("entro a la")
 	for {
-		Mandar(camion)
-		if camion.nombre == "normal" {
-			wgNormal.Add(1)
-			wgNormal.Wait()
-		} else if camion.nombre == "retail1" {
-			wgRetail1.Add(1)
-			wgRetail1.Wait()
-		} else if camion.nombre == "retail2" {
-			wgRetail2.Add(1)
-			wgRetail2.Wait()
+		if camion.conpaquete == 0 {
+			camion.conpaquete = 1
+			log.Printf("Mandando camion %s \n", camion.nombre)
+			camion.conpaquete = Mandar(camion)
+			time.Sleep(time.Duration(5) * time.Second)
+			log.Printf("conpaquete igual a %b ", camion.conpaquete)
+
 		}
+
 	}
 }
 
 //Mandar is
-func Mandar(camion Camion) {
+func Mandar(camion Camion) (ret int) {
 	var i int
 	camion.cargo1.id = "nada"
 	camion.cargo2.id = "nada"
@@ -109,8 +104,8 @@ func Mandar(camion Camion) {
 		camion.cargo2 = appPaquete2
 		fmt.Printf("camion tipo %s lleva cargo %s\n", camion.Tipo, camion.cargo2.id)
 	}
-	//si hay mas de un paquete revisa cual es mas caro y lo entrega primero
-	if camion.cargo2.id != "nada" {
+
+	if camion.cargo2.id != "NOHAY" {
 
 		if camion.cargo1.valor > camion.cargo2.valor {
 			for camion.cargo1.intentos < 3 {
@@ -123,6 +118,7 @@ func Mandar(camion Camion) {
 					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo1.seguimiento, " \n")
 					break
 				}
+				time.Sleep(time.Duration(camion.tEntre) * time.Second)
 			}
 			for camion.cargo2.intentos < 3 {
 				i = rand.Intn(100)
@@ -134,6 +130,7 @@ func Mandar(camion Camion) {
 					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo2.seguimiento, " \n")
 					break
 				}
+				time.Sleep(time.Duration(camion.tEntre) * time.Second)
 			}
 		} else {
 			for camion.cargo2.intentos < 3 {
@@ -147,6 +144,7 @@ func Mandar(camion Camion) {
 					fmt.Println("el camion ", camion.nombre, "entrego con exito el paquete con seguimiento: ", camion.cargo2.seguimiento, " \n")
 					break
 				}
+				time.Sleep(time.Duration(camion.tEntre) * time.Second)
 			}
 			for camion.cargo1.intentos < 3 {
 				i = rand.Intn(100)
@@ -159,10 +157,11 @@ func Mandar(camion Camion) {
 					break
 				}
 			}
+			time.Sleep(time.Duration(camion.tEntre) * time.Second)
 
 		}
 
-	} else { //si solo hay un paquete
+	} else if camion.cargo1.id != "NOHAY" { //si solo hay un paquete
 		for camion.cargo1.intentos < 3 {
 			i = rand.Intn(100)
 			if i >= 80 {
@@ -173,18 +172,11 @@ func Mandar(camion Camion) {
 				log.Println("el camion %s entrego con exito el paquete con seguimiento: %s \n", camion.nombre, camion.cargo1.seguimiento)
 				break
 			}
+			time.Sleep(time.Duration(camion.tEntre) * time.Second)
 		}
 	}
 
-	if camion.nombre == "normal" {
-		wgNormal.Done()
-	} else if camion.nombre == "retail1" {
-		wgRetail1.Done()
-	} else if camion.nombre == "retail2" {
-		wgRetail2.Done()
-	} else {
-		log.Println("algo terrible ha pasado los wg may be fucked")
-	}
+	return 0
 }
 
 func main() {
@@ -193,30 +185,37 @@ func main() {
 		nombre: "normal",
 		Tipo:   "normal",
 	}
-	CRetail1 := Camion{
+	/*CRetail1 := Camion{
 		nombre: "retail1",
 		Tipo:   "retail",
 	}
 	CRetail2 := Camion{
 		nombre: "retail2",
 		Tipo:   "retail",
-	}
+	}*/
 	var espera int
-
+	var esperaEntrega int
 	fmt.Println("Ingrese Tiempo que esperaran los camiones para recibir un segundo paquete")
 	_, err2 := fmt.Scanf("%d\n", &espera)
 	if err2 != nil {
 		fmt.Println(err2)
 	}
 	CNormal.tEspera = espera
-	CRetail1.tEspera = espera
-	CRetail2.tEspera = espera
+	//CRetail1.tEspera = espera
+	//CRetail2.tEspera = espera
 	/*
 		fmt.Println("Tiempo de envio Paquete")
 		tenvio, _ := reader.ReadString('\n')*/
-	go Mandar(CNormal)
-	go Mandar(CRetail1)
-	go Mandar(CRetail2)
+
+	fmt.Println("Ingrese Tiempo de demora para la entrega de los camiones ")
+	_, err1 := fmt.Scanf("%d\n", &esperaEntrega)
+	if err1 != nil {
+		fmt.Println(err1)
+	}
+	CNormal.tEntre = esperaEntrega
+	go EnRuta(CNormal)
+	//go Mandar(CRetail1)
+	//go Mandar(CRetail2)
 	reader := bufio.NewReader(os.Stdin)
 	log.Printf("ingrese 1 para terminar el programa")
 	for {
