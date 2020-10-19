@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,13 @@ type Paquete struct {
 var retail []Paquete
 var prioritario []Paquete
 var noprioritario []Paquete
+var listapaquetes []Paquete
+var finanzas []Paquete
+
+//remove is
+func remove(slice []Paquete, p int) []Paquete {
+	return append(slice[:p], slice[p+1:]...)
+}
 
 //OrdenarPyme is
 func (s *Server) OrdenarPyme(ctx context.Context, message *Orden) (*Message, error) {
@@ -61,7 +69,11 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 	timestamp := fmt.Sprintf("%02d-%02d-%d %02d:%02d", t.Day(), t.Month(), t.Year(), t.Hour(), t.Minute())
 
 	//Codigo Seguimiento
-	code := id + "177013"
+	var banana int
+	banana = len(listapaquetes)
+	var strbanana string
+	strbanana = strconv.Itoa(banana)
+	code := id + strbanana //+"177013"
 
 	//Registro en struct
 	registro := []string{timestamp, id, tipo, producto, valor, tienda, destino, code}
@@ -79,13 +91,16 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 
 	if strings.Compare(tipo, "Normal") == 0 {
 		noprioritario = append(noprioritario, appPaquete)
+
 	} else if (strings.Compare(tipo, "Prioritario")) == 0 {
 		prioritario = append(prioritario, appPaquete)
+
 	} else {
 		retail = append(retail, appPaquete)
 	}
 
-	fmt.Println(prioritario)
+	//fmt.Println(prioritario)
+	listapaquetes = append(listapaquetes, appPaquete)
 
 	//Agrego al csv
 	csvwriter.Write(registro)
@@ -102,23 +117,25 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 	if message.GetBody() == "normal" {
 		if len(prioritario) > 0 {
 			pac = MPaquete{
-				Id:          prioritario[1].id,
-				Seguimiento: prioritario[1].seguimiento,
-				Tipo:        prioritario[1].tipo,
-				Valor:       prioritario[1].valor,
+				Id:          prioritario[0].id,
+				Seguimiento: prioritario[0].seguimiento,
+				Tipo:        prioritario[0].tipo,
+				Valor:       prioritario[0].valor,
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
+			prioritario = remove(prioritario, 0)
 
 		} else if len(noprioritario) > 0 {
 			pac = MPaquete{
-				Id:          noprioritario[1].id,
-				Seguimiento: noprioritario[1].seguimiento,
-				Tipo:        noprioritario[1].tipo,
-				Valor:       noprioritario[1].valor,
+				Id:          noprioritario[0].id,
+				Seguimiento: noprioritario[0].seguimiento,
+				Tipo:        noprioritario[0].tipo,
+				Valor:       noprioritario[0].valor,
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
+			noprioritario = remove(noprioritario, 0)
 		} else {
 			pac = MPaquete{
 				Id:          "NOHAY",
@@ -133,13 +150,140 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 		return &pac, nil
 
 	}
+	if message.GetBody() == "retail" {
+		if len(retail) > 0 {
+			pac = MPaquete{
+				Id:          retail[0].id,
+				Seguimiento: retail[0].seguimiento,
+				Tipo:        retail[0].tipo,
+				Valor:       retail[0].valor,
+				Intentos:    0,
+				Estado:      "En Camino",
+			}
+			retail = remove(retail, 0)
+		} else {
+			pac = MPaquete{
+				Id:          "NOHAY",
+				Seguimiento: "NOHAY",
+				Tipo:        "NOHAY",
+				Valor:       "177013",
+				Intentos:    0,
+				Estado:      "NOHAY",
+			}
+		}
+
+		s.mute.Unlock()
+		return &pac, nil
+	}
 	pac = MPaquete{
-		Id:          "NOHAY",
+		Id:          "NOHAYNADADENADA",
 		Seguimiento: "NOHAY",
 		Tipo:        "NOHAY",
-		Valor:       "177013 pero no entro a la otra wea si",
+		Valor:       "177013",
 		Intentos:    0,
 		Estado:      "NOHAY",
 	}
+
+	s.mute.Unlock()
 	return &pac, nil
+}
+
+//SeguimientoPaquete is para recibir el estado actual del paquete
+func (s *Server) SeguimientoPaquete(ctx context.Context, message *Message) (*Message, error) {
+
+	//Recorro la lista de paquetes
+	for i := len(listapaquetes) - 1; i >= 0; i-- {
+		//Obtengo el paquete en la posicion i y comparo su codigo de seguimiento con el mensaje
+		log.Print(message.Body)
+		if strings.Compare(message.Body, listapaquetes[i].seguimiento) == 0 {
+			return &Message{Body: listapaquetes[i].estado}, nil
+		}
+	}
+	return &Message{Body: "No se ha encontrado el paquete"}, nil
+}
+
+//CambiarEstado is Para actualizar el estado de los paquetes en la ListaPaquetes y en el csv
+func (s *Server) CambiarEstado(ctx context.Context, message *NuevoEstado) (*Message, error) {
+
+	//Recorro la lista de paquetes
+	for i := len(listapaquetes) - 1; i >= 0; i-- {
+		//Obtengo el paquete en la posicion i y comparo su codigo de seguimiento con el mensaje
+		if strings.Compare(message.Seguimiento, listapaquetes[i].seguimiento) == 0 {
+			listapaquetes[i].estado = message.Nuevoestado
+
+			//Lo agrego al csv de finanzas
+			if strings.Compare(message.Nuevoestado, "Entrega Exitosa") == 0 || strings.Compare(message.Nuevoestado, "Entrega Fallida") == 0 {
+				appPaquete := Paquete{
+					id:          listapaquetes[i].id,
+					seguimiento: listapaquetes[i].seguimiento,
+					tipo:        listapaquetes[i].tipo,
+					valor:       listapaquetes[i].valor,
+					intentos:    message.Intentos,
+					estado:      message.Nuevoestado,
+				}
+				finanzas = append(finanzas, appPaquete)
+			}
+
+			return &Message{Body: "Cambio realizado con exito"}, nil
+		}
+	}
+	return &Message{Body: "No se ha encontrado el paquete"}, nil
+}
+
+//ConsultarFinanzas is
+func (s *Server) ConsultarFinanzas(ctx context.Context, message *Message) (*Message, error) {
+
+	ganancias := 0
+	perdidas := 0
+	envioscompletos := 0
+	enviosincompletos := 0
+	resultados := ""
+
+	//Recorro la lista de finanzas
+	for i := len(finanzas) - 1; i >= 0; i-- {
+		valor, _ := strconv.Atoi(finanzas[i].valor)
+
+		//Revisar paquete normal
+		if strings.Compare(finanzas[i].tipo, "Normal") == 0 {
+			//Se envio con exito // else no se envio con exito
+			if strings.Compare(finanzas[i].estado, "Entrega Exitosa") == 0 {
+				ganancias = valor
+				perdidas = int(finanzas[i].intentos * 10)
+				envioscompletos = envioscompletos + 1
+			} else {
+				perdidas = int(finanzas[i].intentos * 10)
+				enviosincompletos = enviosincompletos + 1
+			}
+		}
+		if strings.Compare(finanzas[i].tipo, "Prioritario") == 0 {
+			//Se envio con exito // else no se envio con exito
+			if strings.Compare(finanzas[i].estado, "Entrega Exitosa") == 0 {
+				ganancias = valor
+				perdidas = int(finanzas[i].intentos * 10)
+				envioscompletos = envioscompletos + 1
+			} else {
+				ganancias = valor
+				perdidas = int(finanzas[i].intentos * 10)
+				enviosincompletos = enviosincompletos + 1
+			}
+		} else {
+			//Se envio con exito // else no se envio con exito
+			if strings.Compare(finanzas[i].estado, "Entrega Exitosa") == 0 {
+				ganancias = valor
+				perdidas = perdidas + int(finanzas[i].intentos*10)
+				envioscompletos = envioscompletos + 1
+			} else {
+				ganancias = valor
+				perdidas = perdidas + int(finanzas[i].intentos*10)
+				enviosincompletos = enviosincompletos + 1
+			}
+		}
+
+		gananciastring := strconv.Itoa(ganancias)
+		perdidastring := strconv.Itoa(perdidas)
+		resultados = resultados + "" + finanzas[i].id + "," + finanzas[i].seguimiento + "," + gananciastring + "," + perdidastring + "," + finanzas[i].estado + "\n"
+
+	}
+	return &Message{Body: resultados}, nil
+
 }

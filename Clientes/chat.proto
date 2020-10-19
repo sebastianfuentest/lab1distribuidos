@@ -21,11 +21,19 @@ message MPaquete{
     string estado = 6; 
 }
 
+message NuevoEstado{
+    string seguimiento= 1;
+    string nuevoestado = 2;
+    int32 intentos = 3;
+}
+
 
 
 service ChatService{
     rpc OrdenarPyme(Orden) returns (Message) {}
     rpc OrdenarRetail(Orden) returns (Message) {}
     rpc RecibirPaquete(Message)returns(MPaquete){}
-   // rpc Estado(Message) returns (Message){}
+    rpc SeguimientoPaquete(Message) returns(Message){}
+    rpc CambiarEstado(NuevoEstado) returns(Message){}
+    rpc ConsultarFinanzas(Message) returns(Message){}
 }
