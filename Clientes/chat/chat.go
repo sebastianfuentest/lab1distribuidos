@@ -90,10 +90,10 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 
 	if strings.Compare(tipo, "Normal") == 0 {
 		noprioritario = append(noprioritario, appPaquete)
-		log.Println("haciendo append en no prioritario")
+
 	} else if (strings.Compare(tipo, "Prioritario")) == 0 {
 		prioritario = append(prioritario, appPaquete)
-		log.Println("haciendo append en prioritario")
+
 	} else {
 		retail = append(retail, appPaquete)
 	}
