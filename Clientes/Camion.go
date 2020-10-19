@@ -60,7 +60,7 @@ func Mandar(camion Camion) (ret int) {
 	mensaje := chat.Message{
 		Body: camion.Tipo,
 	}
-	conn, err := grpc.Dial(":9000", grpc.WithInsecure())
+	conn, err := grpc.Dial("dist49:9000", grpc.WithInsecure())
 
 	if err != nil {
 		log.Fatalf("Could not connect: %s", err)
