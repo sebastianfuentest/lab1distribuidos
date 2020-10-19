@@ -30,8 +30,14 @@ var retail []Paquete
 var prioritario []Paquete
 var noprioritario []Paquete
 var listapaquetes []Paquete
+var hicelacosa int = 1
 
-//OrdenarPyme is para recibir las ordenes de las pymes y llamar la funcion que las guarda
+//remove is
+func remove(slice []Paquete, p int) []Paquete {
+	return append(slice[:p], slice[p+1:]...)
+}
+
+//OrdenarPyme is
 func (s *Server) OrdenarPyme(ctx context.Context, message *Orden) (*Message, error) {
 	code := " "
 	if strings.Compare(message.Prioritario, "0") == 0 {
@@ -42,16 +48,16 @@ func (s *Server) OrdenarPyme(ctx context.Context, message *Orden) (*Message, err
 	return &Message{Body: code}, nil
 }
 
-//OrdenarRetail is para recibir las ordenes de retail y llamar la funcion que las guarda
+//OrdenarRetail is
 func (s *Server) OrdenarRetail(ctx context.Context, message *Orden) (*Message, error) {
 	code := GuardarOrden(message.Id, message.Producto, message.Valor, message.Tienda, message.Destino, "Retail")
 	return &Message{Body: code}, nil
 }
 
-//GuardarOrden is para guardar las ordenes en un array y en memoria
+//GuardarOrden is
 func GuardarOrden(id string, producto string, valor string, tienda string, destino string, tipo string) string {
-	//Registro en memoria
-	csvfile, err := os.OpenFile("logistica.csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	//Registro en Memoria
+	csvfile, err := os.OpenFile("dblogistica.csv", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -68,6 +74,7 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 	registro := []string{timestamp, id, tipo, producto, valor, tienda, destino, code}
 
 	//Agregar Paquete a la cola
+
 	appPaquete := Paquete{
 		id:          id,
 		seguimiento: code,
@@ -85,6 +92,7 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 		retail = append(retail, appPaquete)
 	}
 
+	//fmt.Println(prioritario)
 	listapaquetes = append(listapaquetes, appPaquete)
 
 	//Agrego al csv
@@ -99,18 +107,23 @@ func GuardarOrden(id string, producto string, valor string, tienda string, desti
 func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquete, error) {
 	var pac MPaquete
 	s.mute.Lock()
+	if hicelacosa == 1 {
+		prioritario = remove(prioritario, 0)
+		hicelacosa = 0
+	}
 	if message.GetBody() == "normal" {
 		if len(prioritario) > 0 {
 			pac = MPaquete{
-				Id:          prioritario[1].id,
-				Seguimiento: prioritario[1].seguimiento,
-				Tipo:        prioritario[1].tipo,
-				Valor:       prioritario[1].valor,
+				Id:          prioritario[0].id,
+				Seguimiento: prioritario[0].seguimiento,
+				Tipo:        prioritario[0].tipo,
+				Valor:       prioritario[0].valor,
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
+			prioritario = remove(prioritario, 0)
 
-		} else if len(noprioritario) > 0 {
+		} else if len(noprioritario) > 1 {
 			pac = MPaquete{
 				Id:          noprioritario[1].id,
 				Seguimiento: noprioritario[1].seguimiento,
@@ -119,6 +132,7 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 				Intentos:    0,
 				Estado:      "En Camino",
 			}
+			noprioritario = remove(noprioritario, 1)
 		} else {
 			pac = MPaquete{
 				Id:          "NOHAY",
@@ -133,14 +147,41 @@ func (s *Server) RecibirPaquete(ctx context.Context, message *Message) (*MPaquet
 		return &pac, nil
 
 	}
+	if message.GetBody() == "retail" {
+		if len(retail) > 0 {
+			pac = MPaquete{
+				Id:          retail[1].id,
+				Seguimiento: retail[1].seguimiento,
+				Tipo:        retail[1].tipo,
+				Valor:       retail[1].valor,
+				Intentos:    0,
+				Estado:      "En Camino",
+			}
+			retail = remove(retail, 1)
+		} else {
+			pac = MPaquete{
+				Id:          "NOHAY",
+				Seguimiento: "NOHAY",
+				Tipo:        "NOHAY",
+				Valor:       "177013",
+				Intentos:    0,
+				Estado:      "NOHAY",
+			}
+		}
+
+		s.mute.Unlock()
+		return &pac, nil
+	}
 	pac = MPaquete{
-		Id:          "NOHAY",
+		Id:          "NOHAYNADADENADA",
 		Seguimiento: "NOHAY",
 		Tipo:        "NOHAY",
-		Valor:       "177013 pero no entro a la otra wea si",
+		Valor:       "177013",
 		Intentos:    0,
 		Estado:      "NOHAY",
 	}
+
+	s.mute.Unlock()
 	return &pac, nil
 }
 

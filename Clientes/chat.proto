@@ -27,7 +27,6 @@ message NuevoEstado{
 }
 
 
-
 service ChatService{
     rpc OrdenarPyme(Orden) returns (Message) {}
     rpc OrdenarRetail(Orden) returns (Message) {}

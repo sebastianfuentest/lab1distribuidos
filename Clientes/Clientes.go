@@ -27,7 +27,7 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Ingrese una opción \n1.Subir archivo pymes.csv\n2.Subir archivo retail.csv\n3.Consultar pedido")
-	fmt.Println("---------------------")
+	log.Printf("---------------------")
 
 	for {
 		fmt.Print("-> ")
@@ -94,7 +94,6 @@ func main() {
 			}
 			//Termina de leerlo
 		}
-
 		if strings.Compare(text, "3") == 0 {
 
 			fmt.Print("->Ingrese Codigo seguimiento ")
@@ -106,28 +105,6 @@ func main() {
 			}
 
 			response, err := c.SeguimientoPaquete(context.Background(), &codigopedido)
-			if err != nil {
-				log.Fatalf("We couldn't say hello: %s", err)
-			}
-
-			log.Printf("Su codigo de seguimiento es: %s", response.Body)
-
-		}
-
-		//Esto no deberia existir es solo para testear
-
-		if strings.Compare(text, "4") == 0 {
-
-			fmt.Print("->Ingrese Codigo seguimiento ")
-			text, _ := reader.ReadString('\n')
-			text = strings.TrimSuffix(text, "\r\n")
-
-			codigopedido := chat.NuevoEstado{
-				Seguimiento: text,
-				Nuevoestado: "En camino",
-			}
-
-			response, err := c.CambiarEstado(context.Background(), &codigopedido)
 			if err != nil {
 				log.Fatalf("We couldn't say hello: %s", err)
 			}
